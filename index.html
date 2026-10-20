@@ -1,0 +1,395 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Compteur de foule</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Layout: counter on top, Zoom field and ready-to-copy report in the middle, thumb-sized -1 / +1 pad at the bottom. */
+  :root {
+    --bg: #f1f4f3;
+    --surface: #e1e8e5;
+    --fg: #16201d;
+    --muted: #5a6864;
+    --line: #c5d0cc;
+    --accent: #0e6a55;
+    --accent-fg: #ffffff;
+    --danger: #b0351f;
+    --font-num: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --font-ui: "Barlow", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1615;
+      --surface: #1a2423;
+      --fg: #e7efec;
+      --muted: #8a9a95;
+      --line: #2a3835;
+      --accent: #3fc7a3;
+      --accent-fg: #05211a;
+      --danger: #ff8d73;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1615;
+    --surface: #1a2423;
+    --fg: #e7efec;
+    --muted: #8a9a95;
+    --line: #2a3835;
+    --accent: #3fc7a3;
+    --accent-fg: #05211a;
+    --danger: #ff8d73;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { height: 100%; }
+  body {
+    min-height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-ui);
+    padding-block: 12px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  #reset {
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  #reset.armed {
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+
+  main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .label {
+    font-size: 0.8125rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  #count {
+    font-family: var(--font-num);
+    font-weight: 600;
+    font-size: clamp(5.5rem, 30vw, 11rem);
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  #count.bump { animation: bump 140ms ease-out; }
+  @keyframes bump {
+    from { transform: scale(1.06); }
+    to { transform: scale(1); }
+  }
+
+  .zoom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 8px 8px 8px 16px;
+  }
+  .zoom label {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+  #zoom {
+    width: 8.5rem;
+    min-width: 0;
+    font-family: var(--font-num);
+    font-weight: 600;
+    font-size: 2rem;
+    text-align: right;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px 12px;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  #zoom::placeholder { color: var(--muted); opacity: 0.6; }
+
+  .report {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+  }
+  #report {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  #copy {
+    flex: none;
+    align-self: center;
+    font: inherit;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    min-width: 6.5rem;
+    min-height: 44px;
+    color: var(--accent);
+    background: transparent;
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  #copy.done {
+    color: var(--accent-fg);
+    background: var(--accent);
+  }
+
+  .pad {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 12px;
+    height: min(26vh, 200px);
+    min-height: 120px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pad button {
+    font-family: var(--font-num);
+    font-weight: 600;
+    font-size: clamp(3rem, 14vw, 5rem);
+    border: 0;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: transform 80ms ease-out, filter 80ms;
+  }
+  .pad button:active { transform: scale(0.97); filter: brightness(0.92); }
+  #minus {
+    background: var(--surface);
+    color: var(--fg);
+    border: 1px solid var(--line);
+  }
+  #minus:disabled { opacity: 0.4; cursor: default; transform: none; filter: none; }
+  #plus {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  button:focus-visible, input:focus-visible {
+    outline: 3px solid var(--fg);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #count.bump { animation: none; }
+    .pad button { transition: none; }
+  }
+</style>
+
+<header>
+  <h1>Compteur de foule</h1>
+  <button id="reset" type="button">Remettre à zéro</button>
+</header>
+
+<main>
+  <div class="label">Présentiel</div>
+  <p id="count" role="status" aria-live="polite">0</p>
+</main>
+
+<section class="zoom">
+  <label for="zoom">Compte Zoom</label>
+  <input id="zoom" type="text" inputmode="numeric" autocomplete="off" placeholder="0">
+</section>
+
+<section class="report">
+  <pre id="report"></pre>
+  <button id="copy" type="button">Copier</button>
+</section>
+
+<div class="pad">
+  <button id="minus" type="button" aria-label="Retirer une personne">−1</button>
+  <button id="plus" type="button" aria-label="Ajouter une personne">+1</button>
+</div>
+
+<script>
+  (function () {
+    var KEY = "compteur-foule-v1";
+    var state = { n: 0, zoom: "" };
+
+    try {
+      var saved = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (saved && typeof saved.n === "number") {
+        state = { n: saved.n, zoom: saved.zoom || "" };
+      }
+    } catch (e) {}
+
+    var elCount = document.getElementById("count");
+    var elZoom = document.getElementById("zoom");
+    var elReport = document.getElementById("report");
+    var btnMinus = document.getElementById("minus");
+    var btnPlus = document.getElementById("plus");
+    var btnReset = document.getElementById("reset");
+    var btnCopy = document.getElementById("copy");
+
+    function save() {
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    }
+
+    function today() {
+      var d = new Date();
+      function p(x) { return (x < 10 ? "0" : "") + x; }
+      return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear();
+    }
+
+    function reportText() {
+      var z = state.zoom.trim() === "" ? "0" : state.zoom.trim();
+      return "Assistance du " + today() + "\nPrésentiel : " + state.n + "\nZoom : " + z;
+    }
+
+    function renderReport() {
+      elReport.textContent = reportText();
+    }
+
+    function render(animate) {
+      elCount.textContent = state.n;
+      elZoom.value = state.zoom;
+      btnMinus.disabled = state.n <= 0;
+      renderReport();
+      if (animate) {
+        elCount.classList.remove("bump");
+        void elCount.offsetWidth;
+        elCount.classList.add("bump");
+      }
+    }
+
+    var wakeRequested = false;
+    function keepAwake() {
+      if (wakeRequested) return;
+      wakeRequested = true;
+      try {
+        if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(function () {});
+      } catch (e) {}
+    }
+
+    function add(d) {
+      keepAwake();
+      if (d < 0 && state.n <= 0) return;
+      state.n += d;
+      save();
+      render(true);
+      try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {}
+    }
+
+    btnPlus.addEventListener("click", function () { add(1); });
+    btnMinus.addEventListener("click", function () { add(-1); });
+
+    elZoom.addEventListener("input", function () {
+      state.zoom = elZoom.value;
+      save();
+      renderReport();
+    });
+
+    var copyTimer = null;
+    function copied() {
+      btnCopy.classList.add("done");
+      btnCopy.textContent = "Copié ✓";
+      clearTimeout(copyTimer);
+      copyTimer = setTimeout(function () {
+        btnCopy.classList.remove("done");
+        btnCopy.textContent = "Copier";
+      }, 1600);
+    }
+    function fallbackCopy() {
+      try {
+        var range = document.createRange();
+        range.selectNodeContents(elReport);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        if (document.execCommand("copy")) copied();
+      } catch (e) {}
+    }
+    btnCopy.addEventListener("click", function () {
+      renderReport();
+      var text = reportText();
+      try {
+        navigator.clipboard.writeText(text).then(copied, fallbackCopy);
+      } catch (e) {
+        fallbackCopy();
+      }
+    });
+
+    var armTimer = null;
+    function disarm() {
+      btnReset.classList.remove("armed");
+      btnReset.textContent = "Remettre à zéro";
+      clearTimeout(armTimer);
+      armTimer = null;
+    }
+    btnReset.addEventListener("click", function () {
+      if (!armTimer) {
+        btnReset.classList.add("armed");
+        btnReset.textContent = "Confirmer ?";
+        armTimer = setTimeout(disarm, 3000);
+        return;
+      }
+      state = { n: 0, zoom: "" };
+      save();
+      render(false);
+      disarm();
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.target && e.target.tagName === "INPUT") return;
+      if (e.key === "+" || e.key === "=" || e.key === "ArrowUp") { e.preventDefault(); add(1); }
+      else if (e.key === "-" || e.key === "ArrowDown") { e.preventDefault(); add(-1); }
+    });
+
+    render(false);
+  })();
+</script>
+
+</body></html>
